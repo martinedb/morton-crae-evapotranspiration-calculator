@@ -1,7 +1,7 @@
 # Morton CRAE Evapotranspiration Calculator
 
 ## Overview
-This Python implementation calculates daily evapotranspiration using the Morton Comprehensive Reference Atmosphere Evapotranspiration (CRAE) method. The calculator processes meteorological data to estimate potential evapotranspiration (ETP) and actual evapotranspiration (ET) values for long-term periods. The sample data base data is based on 13 years of collected data but can be adapted for any long-term period.
+This Python implementation calculates daily evapotranspiration using the Morton Complementary Relationship Areal Evapotranspiration (CRAE) method. The calculator processes meteorological data to estimate potential evapotranspiration (ETP) and actual evapotranspiration (ET) values for long-term periods. The sample data base data is based on 13 years of collected data but can be adapted for any long-term period.
 
 ## Data Input Format
 The calculator requires daily meteorological data in an Excel workbook with the following columns:
