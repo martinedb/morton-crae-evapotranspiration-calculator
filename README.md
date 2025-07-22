@@ -172,9 +172,6 @@ $W$ = Precipitable water vapour (mm)
 $v_D$ = Dew point vapour pressure (mbar)  
 $T$ = Air temperature (°C)
 
-*Note: This empirical formula is used in the Python implementation for improved accuracy. Previous versions or some literature may use $W = \frac{1000 v_D}{p}$, but the above is recommended for this context.*
-
-
 ### 9. Turbidity Coefficient
 
 $$
@@ -286,97 +283,173 @@ $p/p_s$ = Pressure ratio
 $\rho$ = Cloud radiation effect
 
 
-### 17. Stability, Transfer, and Iterative Solution for Potential ET
+### 16. Stability, Transfer, and Iterative Solution for Potential ET
 
-The Morton CRAE method uses a sophisticated set of coupled equations to estimate the equilibrium surface temperature and potential evapotranspiration. These are solved iteratively, with temperature-dependent stability and transfer coefficients.
-
-#### Stability and Transfer Coefficients
-
-For air temperature $T$ (°C), vapour pressures $v, v_D$ (mbar), slope of SVP curve $\Delta$, net radiation $R_{Tc}$, and pressure ratio $p/p_s$:
-
-- Psychrometric constant:
-  $$
-  \gamma_p = \gamma_{ps} \cdot \frac{1}{p/p_s}
-  $$
-  where $\gamma_{ps} = 0.66$ (for $T \geq 0$) or $0.66/1.15$ (for $T < 0$).
-
-- Stability factor:
-  $$
-  \zeta = \min\left(\frac{1}{\max\left(0.28\left[1 + \frac{v_D}{v}\right] + \frac{\Delta R_{Tc}}{\gamma_p (p/p_s)^{-0.5} b_0 f_z (v-v_D)}, 1\times 10^{-6}\right)}, 1.0\right)
-  $$
-  where $f_z = 28.0$ (for $T \geq 0$) or $28.0 \times 1.15$ (for $T < 0$), $b_0 = 1.0$.
-
-- Vapour transfer coefficient:
-  $$
-  f_T = (p/p_s)^{-0.5} \frac{f_z}{\zeta}
-  $$
-
-- Heat transfer coefficient:
-  $$
-  \lambda = \gamma_p + \frac{4 \epsilon \sigma (T+273.15)^3}{f_T}
-  $$
-
-- Latent heat of vaporization/sublimation:
-  $$
-  \Delta H_{vap} =
-  \begin{cases}
-    28.5 & \text{if } T \geq 0 \\
-    28.5 \times 1.15 & \text{if } T < 0
-  \end{cases}
-  $$
-
-#### Iterative Solution for Equilibrium Surface Temperature ($T_P$)
-
-Starting with $T'_p = T$, $v'_p = v$, $\Delta'_P = \Delta$:
-
-- Update:
-  $$
-  \delta T_p = \frac{R_T / f_T + v_D - v'_p + \lambda (T - T'_p)}{\Delta'_P + \lambda}
-  $$
-  $$
-  T_P = T'_p + \delta T_p
-  $$
-  $$
-  v_P = 6.11 \cdot \exp\left( \frac{\alpha T_P}{T_P + \beta} \right)
-  $$
-  $$
-  \Delta_P = \frac{\alpha \beta v_P}{(T_P + \beta)^2}
-  $$
-
-Repeat until $|\delta T_p| \leq 0.01$°C.
-
-#### Final Evapotranspiration Calculations
-
-- Potential ET at air temperature:
-  $$
-  ETP = R_T - \lambda \cdot f_T (T_P - T)
-  $$
-- Net radiation at $T_P$:
-  $$
-  RTP = ETP + \gamma_p f_T (T_P - T)
-  $$
-- Wet-environment areal ET:
-  $$
-  ET_W = b_1 + b_2 \left[1 + \frac{\gamma_p}{\Delta_P}\right]^{-1} RTP
-  $$
-- Actual areal ET (complementary relationship):
-  $$
-  ET = 2 ET_W - ETP
-  $$
-- Convert to mm:
-  $$
-  \text{(mm)} = \text{(W m}^{-2}\text{)} \times \frac{n_{days}}{\Delta H_{vap}}
-  $$
-
-Where:
-- $b_1 = 14.0$ W/m², $b_2 = 1.20$ W/m²
-- $n_{days}$ = number of days in the averaging period
+> **Note:** All equations are written using LaTeX syntax for scientific clarity and precision.
 
 ---
 
-### 18. Workflow & Formula Dependency Mindmap
+### Stability and Transfer Coefficients
 
-Below is a conceptual mindmap showing the dependency of all major formulae in the Morton CRAE calculation workflow. For interactive exploration, consider using a tool such as [Mermaid.js](https://mermaid-js.github.io/mermaid/#/).
+Let:
+
+- $T$ = air temperature (°C)  
+- $v$, $v_D$ = vapour pressures (mbar)  
+- $\Delta$ = slope of saturation vapour pressure curve  
+- $R_{Tc}$ = net radiation  
+- $p/p_s$ = pressure ratio  
+
+#### Psychrometric Constant
+
+$$
+\gamma_p = \frac{\gamma_{ps}}{p/p_s}
+$$
+
+where
+
+$$
+\gamma_{ps} =
+\begin{cases}
+0.66, & T \geq 0^\circ\text{C} \\
+\frac{0.66}{1.15}, & T < 0^\circ\text{C}
+\end{cases}
+$$
+
+---
+
+#### Stability Factor
+
+$$
+\zeta = \min\left( \frac{1}{\max\left( 0.28 \left( 1 + \frac{v_D}{v} \right ) + \frac{ \Delta R_{Tc} }{ \gamma_p (p/p_s)^{-0.5} b_0 f_z (v - v_D) },\ 1 \times 10^{-6} \right)},\ 1.0 \right)
+$$
+
+
+where
+
+$$
+f_z =
+\begin{cases}
+28.0, & T \geq 0^\circ\text{C} \\
+28.0 \times 1.15, & T < 0^\circ\text{C}
+\end{cases}
+\qquad
+b_0 = 1.0
+$$
+
+---
+
+#### Vapour Transfer Coefficient
+
+$$
+f_T = (p/p_s)^{-0.5} \cdot \frac{f_z}{\zeta}
+$$
+
+---
+
+#### Heat Transfer Coefficient
+
+$$
+\lambda = \gamma_p + \frac{4 \epsilon \sigma (T + 273.15)^3}{f_T}
+$$
+
+---
+
+#### Latent Heat of Vaporization or Sublimation
+
+$$
+\Delta H_{\text{vap}} =
+\begin{cases}
+28.5, & T \geq 0^\circ\text{C} \\
+28.5 \times 1.15, & T < 0^\circ\text{C}
+\end{cases}
+$$
+
+---
+
+### Iterative Solution for Equilibrium Surface Temperature ($T_P$)
+
+Start with initial values:
+
+$$
+T'_p = T, \quad v'_p = v, \quad \Delta'_P = \Delta
+$$
+
+Update equations:
+
+$$
+\delta T_p =
+\frac{
+\frac{R_T}{f_T} + v_D - v'_p + \lambda (T - T'_p)
+}{
+\Delta'_P + \lambda
+}
+$$
+
+$$
+T_P = T'_p + \delta T_p
+$$
+
+$$
+v_P = 6.11 \cdot \exp \left( \frac{\alpha T_P}{T_P + \beta} \right)
+$$
+
+$$
+\Delta_P = \frac{\alpha \beta v_P}{(T_P + \beta)^2}
+$$
+
+Repeat until:
+
+$$
+|\delta T_p| \leq 0.01^\circ\text{C}
+$$
+
+---
+
+### Final Evapotranspiration Calculations
+
+#### Potential ET at Air Temperature
+
+$$
+ET_P = R_T - \lambda \cdot f_T (T_P - T)
+$$
+
+#### Net Radiation at Surface Temperature $T_P$
+
+$$
+R_{TP} = ET_P + \gamma_p f_T (T_P - T)
+$$
+
+#### Wet-Environment Areal ET
+
+$$
+ET_W = b_1 + b_2 \left(1 + \frac{\gamma_p}{\Delta_P} \right)^{-1} R_{TP}
+$$
+
+#### Actual Areal ET (Complementary Relationship)
+
+$$
+ET = 2 ET_W - ET_P
+$$
+
+#### Conversion to Millimetres
+
+$$
+\text{mm} = \left(\text{W m}^{-2} \right) \cdot \frac{n_{\text{days}}}{\Delta H_{\text{vap}}}
+$$
+
+---
+
+### Constants
+
+- $b_1 = 14.0$ W/m²  
+- $b_2 = 1.20$ W/m²  
+- $n_{\text{days}}$ = number of days in the averaging period
+
+---
+
+### 18. Workflow & Formula Dependency Flowcharts
+
+Below are two conceptual flowcharts showing the dependency of all major formulae in the Morton CRAE calculation workflow. For interactive exploration, consider using a tool such as [Mermaid.js](https://mermaid-js.github.io/mermaid/#/). The first flowchart is more specific while the second flowchart is a more generalized overview of the workflow of this code.
 
 ```mermaid
 graph TD
@@ -393,7 +466,18 @@ graph TD
     K --> L[Net Radiation: RT]
     L --> M[Stability/Transfer: ζ, fT, λ, γp, ΔHvap]
     M --> N[Iterative TP Solution: TP, vP, ΔP]
-    N --> O[Final ET Calculation: ETP, ET, RT (mm)]
+    N --> O[Final ET Calculation: ETP, ET, RT mm]
+
+```
+
+This is the second flowchart that is more generalized.
+
+```mermaid
+flowchart TD
+    A["Input Data (Excel)"] --> B["Site Constants"]
+    B --> C["Meteorological Calculations"]
+    C --> D["Radiation Balance"]
+    D --> E["Evapotranspiration Calculations"]
 ```
 
 ---
@@ -427,65 +511,7 @@ The implementation uses the following Python packages:
 3. Run the script to calculate evapotranspiration values
 
 ## References
-- Pamula, A., & Szyk, M. (2024). Magnus-Tetens equation accuracy analysis. Journal of Meteorology.
-- Environment and Climate Canada. (2025). Climate Data Online. https://climate.weather.gc.ca/
-- National Research Council Canada. (2025). Sun Calculator. https://nrc.canada.ca/en/research-development/products-services/software-applications/sun-calculator/
-
-## Workflow Visualization
-
-The calculator follows this workflow:
-
-```
-+-------------------+
-| Input Data        |
-| (Excel)           |
-| ----------------- |
-| | Date           |
-| | Tmax           |
-| | Tavg           |
-| | TD             |
-| | S              |
-| | n_days         |
-| | month          |
-+--------+----------+
-         |
-         v
-+--------+----------+
-| Site Constants    |
-| ----------------- |
-| | Altitude (H)   |
-| | Latitude (φ)   |
-| | PA             |
-+--------+----------+
-         |
-         v
-+--------+----------+
-| Meteorological    |
-| Calculations      |
-| ----------------- |
-| | Vapour Pressure|
-| | Dew Point      |
-| | Solar Geometry |
-| | Radiation      |
-+--------+----------+
-         |
-         v
-+--------+----------+
-| Radiation Balance |
-| ----------------- |
-| | Net Radiation  |
-| | Albedo         |
-| | Long-wave      |
-+--------+----------+
-         |
-         v
-+--------+----------+
-| Evapotranspiration|
-| Calculations      |
-| ----------------- |
-| | ETP            |
-| | ET             |
-+-------------------+
-```
-
-This workflow shows how the input data flows through various calculations to produce the final evapotranspiration estimates.
+- Pamula, A., & Szyk, M. (2024). [Magnus-Tetens equation accuracy analysis.](https://www.researchgate.net/publication/385816714_Development_of_an_Optimized_Non-Linear_Model_for_Precise_Dew_Point_Estimation_in_Variable_Environmental_Conditions) Journal of Meteorology.
+- Environment and Climate Canada. (2025). [Climate Data Online](https://climate.weather.gc.ca/)
+- National Research Council Canada. (2025). [Sun Calculator](https://nrc.canada.ca/en/research-development/products-services/software-applications/sun-calculator/)
+- Government of Alberta. (April 2013). [Evaporation and Evapotranspiration in Alberta](https://open.alberta.ca/dataset/46557167-126e-4bb3-b84f-615ead212b3f/resource/93686041-152d-400d-854e-b12d4d3a5481/download/8938.pdf)
