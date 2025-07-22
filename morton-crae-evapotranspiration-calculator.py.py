@@ -1,6 +1,6 @@
 # Morton CRAE Daily Evapotranspiration Estimator
 # Author: Martin Edwini-Bonsu
-# Language: Python 3.12.1
+# Language: Python 3.13.2
 
 import pandas as pd
 import numpy as np
@@ -16,6 +16,12 @@ DATA_SHEET = "daily"                    # sheet containing daily observations
 #       |  °C  |°C| °C | – | d | 1-12
 #
 #  If your file uses different headers, edit COLS below.
+# Tmax = Maximum temperature
+# Tavg = Average temperature
+# TD = Dew point temperature
+# S = Sunshine ratio
+# n = Number of days
+# i = Month (1-12)
 COLS = dict(date="Date", tmax="Tmax", tavg="tavg", tdew="TD",
             sun_ratio="S", ndays="n", month="i")
 
@@ -37,22 +43,31 @@ b0       = 1.00
 #    Each follows the numbering of your spec for easy audit.
 # ─────────────────────────────────────────────────────────────────────────────
 def p_ps(alt_m):
-    """Eq 2 – pressure ratio p/ps"""
+    """Eq 2 – pressure ratio p/ps""" ## Compute ratio of atmospheric pressure at the station to that at sea level with the pressure correction equation 
+    # for the standard atmosphere
     return ((288 - 0.0065*alt_m)/288) ** 5.256
 
+# Estimate the zenith value of the dry-season snow-free clear-sky albedo
 def azd(pa_mm, p_over_ps, lat_deg):
     """Eq 3 – dry-season, snow-free clear-sky albedo"""
     azd_raw = 0.26 - 0.00012*pa_mm*(p_over_ps**0.5)*(1 + lat_deg/42 + (lat_deg/42)**2)
     return np.clip(azd_raw, 0.11, 0.17)
 
+# Compute the saturation vapour pressure at dew point temperature and the saturation vapour pressure
 def sat_vap_press(t_c, alpha, beta):
     """Eq 3/4 – saturation vapour pressure (mbar)"""
     return 6.11*np.exp(alpha*t_c/(t_c+beta))
 
+# Computer the slope of the saturation vapour pressure curve
 def slope_svp(t_c, v_mbar, alpha, beta):
     """Eq 5 – slope of the SVP curve Δ (mbar °C-1)"""
     return (alpha*beta*v_mbar)/(t_c+beta)**2
 
+# Compute the various angles and functions leading up to an estimate of the extra-atmospheric global radiation
+# theta is the declination of the sun (in degrees)
+# omega(w) is the number of degrees the earth rotates between sunrise and noon
+# Z and z are the noon and average angular zenith distances of the sun, respectively
+# eta (η) is the radius vector of the sun
 def solar_geometry(month, lat, p_over_ps, v, vD):
     """Steps 6-7 – returns dict with θ, Z, ω, z, η, GE, azz, az, ao"""
     theta = 23.2*np.sin(np.deg2rad(29.5*month - 94))       # Eq 6
@@ -63,6 +78,7 @@ def solar_geometry(month, lat, p_over_ps, v, vD):
     ω     = np.rad2deg(np.arccos(cosω))
 
     # Avoid /0 if ω==0 (polar night) by small floor:
+    # Estimate the zenith value of snow-free clear-sky albedo (azz), the zenith value of clear-sky albedo (az), and the clear-sky albedo (ao)
     ω     = np.where(ω == 0, 1e-6, ω)
     term  = (180/np.pi)*(np.sin(np.deg2rad(ω))/ω) - 1
     cosz  = cosZ + term*np.cos(np.deg2rad(lat))*np.cos(np.deg2rad(theta))   # Eq 9
@@ -84,6 +100,7 @@ def albedos(azz, v, vD, Z):
     ao  = az*num/den
     return az, ao
 
+# Estimate precipitable water vapour W in millimetres and a turbidity coefficient
 def precipitable_W(vD, T):
     """Eq 16 – precipitable water vapour W (mm)"""
     return vD/(0.49 + T/129)
@@ -93,6 +110,7 @@ def turbidity_j(T, z_deg, p_ps_ratio):
     c1 = np.clip(21 - T, 0, 5)                             # Eq 17 & 17a
     return (0.5 + 2.5*np.cos(np.deg2rad(z_deg))**2) * np.exp(c1*(p_ps_ratio - 1))
 
+# Compute the transmittancy of clear skies to direct beam solar radiation from an equation formulated by Brooks
 def transmittance_tau(p_ps_ratio, z_deg, j, W):
     """Eq 9 – τ"""
     cosz = np.cos(np.deg2rad(z_deg))
@@ -101,28 +119,35 @@ def transmittance_tau(p_ps_ratio, z_deg, j, W):
     term3 = -0.029*(W/cosz)**0.60
     return np.exp(term1 + term2 + term3)
 
+# Estimate the part of transmittancy of clear skies to direct beam solar radiation that is the result of absorption (tau_a)
+
 def tau_a(j, W, z_deg):
     """Eq 10 – τa (absorption component)"""
     cosz = np.cos(np.deg2rad(z_deg))
     return np.exp(-0.0415*(j/cosz)**0.90 - (0.0029)**0.50*(W/cosz)**0.30)
 
+#Compute the clear-sky global radiation Go (W m-2)
 def clear_sky_G0(GE, τ, τa, ao):
     """Eq 11-1 – clear-sky global radiation Go (W m-2)"""
     return GE*τ*(1 + (1 - τ/τa)*(1 + ao*τ))
 
+# Compute the incident global radiation (G)
 def incident_G(S, Go, GE):
     """Eq 11-2 – incident global radiation G (W m-2)"""
     return S*Go + (0.08 + 0.30*S)*(1 - S)*GE
 
+# EStimate the average albedo (a)
 def mean_albedo(a0, S, Z):
     """Eq 12 – average albedo a"""
     return a0*(S + (1 - S)*(1 - Z/330))
 
+# Estimate the proportional increase in atmospheric radiation due to clouds (rho)
 def rho_cloud(T, vD, v, S, p_ps_ratio):
     """Eq 13 – ρ, ∝ increase in LW due to clouds"""
     c2 = np.clip(10*(vD/v - S - 0.42), 0, 1.0)
     return 0.18*((1 - c2)*(1 - S)**2 + c2*(1 - S)**0.5) * (1/p_ps_ratio)
 
+# Calculate the net long-wave radiation loss for soil--plant surfaces at air temperature
 def B_longwave(T, vD, p_ps_ratio, rho):
     """Eq 14 – net LW radiation loss B (W m-2)"""
     T_k = T + 273.15
@@ -130,6 +155,7 @@ def B_longwave(T, vD, p_ps_ratio, rho):
     min_b = 0.05*epsilon*sigma*T_k**4
     return np.maximum(raw, min_b)
 
+# Estimate the net radiation for soil-plant surfaces at air temperature, the stability factor, the vapour transfer coefficient, and the heat transfer coefficient.
 def RT_net(G, a, B):
     """Eq 27 – net radiation at air temperature RT"""
     return (1 - a)*G - B
@@ -152,6 +178,27 @@ def stability_and_transfer(v, vD, Δ, RTc, T, T_cond, p_ps_ratio):
     λ    = γp + 4*epsilon*sigma*(T+273.15)**3/fT
     return ζ, fT, λ, γp, ΔHvap
 
+# Choose initial values of T'_p, v'_p, and Δ'_P equal to T_p, v, and Δ 
+# and estimate the final values from the following quickly converging iterative 
+# solution of the vapour transfer and energy-balance equations:
+
+# Equation (32):
+# [δT_p] = [R_n/f_T + v_D - v'_p + λ(T - T'_p)] / (Δ'_p + λ)
+
+# Equation (33):
+# T_P = T'_p + [δT_p]
+
+# Equation (34):
+# v_p = 6.11 * exp[(α * T_P) / (T_P + β)]
+
+# Equation (35):
+# Δ_P = α * β * v_p / (T_P + β)^2
+
+# Equations 32 to 35 are repeated, setting T'_p, v'_p, and Δ'_p equal to the values 
+# of T_P, v_P, and Δ_P derived from the preceding iteration until |δT_p| <= 0.01°C. 
+# The purpose is to estimate the potential evapotranspiration equilibrium temperature (T_P) 
+# from a solution of the vapour transfer and energy-balance equations for a small moist surface.
+
 def iterate_TP(T, vD, RT, fT, λ, *, alpha, beta, tol=0.01, max_iter=50):
     """
     Step 16 – solves for equilibrium surface temperature TP.
@@ -173,6 +220,20 @@ def iterate_TP(T, vD, RT, fT, λ, *, alpha, beta, tol=0.01, max_iter=50):
     ΔP = slope_svp(TP, vP, alpha, beta)
     return TP, vP, ΔP
 
+# Estimate the potential evapotranspiration, the net radiation for soil--plant surfaces at the equilibrium temperature and the wet environment areal evapotranspiration
+# in which the constants b1 and b2 are 14 W/m^2 and 1.20 W/m^2, respectively.
+
+# Convert the net radiation for soil–plant surfaces at air temperature (R_T), 
+# the potential evapotranspiration (E_TP), and the areal evapotranspiration (E_T) 
+# from the power units of W m^-2 to the evaporation units of millimetres of depth. 
+# This is done by dividing by the latent heat of vaporization or sublimation 
+# and multiplying by the number of days.
+
+# The latent heat of vaporization (for T >= 0°C) is:
+#   28.5 W-days per kilogram
+
+# The latent heat of sublimation (for T < 0°C) is:
+#   28.5 × 1.15 = 32.775 W-days per kilogram
 
 # --- function definition -------------------------------------------
 def final_ET(RT, fT, TP, T, γp, ΔP, ΔHvap, ndays, λ):
