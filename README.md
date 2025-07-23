@@ -449,7 +449,7 @@ $$
 
 ### 18. Workflow & Formula Dependency Flowcharts
 
-Below are two conceptual flowcharts showing the dependency of all major formulae in the Morton CRAE calculation workflow. For interactive exploration, consider using a tool such as [Mermaid.js](https://mermaid-js.github.io/mermaid/#/). The first flowchart is more specific while the second flowchart is a more generalized overview of the workflow of this code.
+Below are two conceptual flowcharts showing the dependency of all major formulae in the Morton CRAE calculation workflow. The first flowchart is more specific while the second flowchart is a more generalized overview of the workflow of this code.
 
 ```mermaid
 graph TD
